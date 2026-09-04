@@ -51,28 +51,33 @@ function normalizeCells(value: Cells): Cells {
 }
 
 /**
- * 這組四格是不是「國語真的有的音」。
- *
- * 判準就是代讀漢字表查不查得到（1250 個音節），不另外寫規則——
- * 這張表本來就是從教育部辭典生出來的，它有的音就是有的音。
- * 沒有任何聲韻符號（空的、或只按了聲調）一律不合法：`toSyllable()` 這時回傳空字串。
+ * 找近似漢字時的聲調順序：一聲（無調符）優先，再 ˊ ˇ ˋ ˙。
  */
-export function isLegalCells(cells: Cells): boolean {
-    const syllable = toSyllable(cells);
-    if (!syllable) return false;
-    return Object.prototype.hasOwnProperty.call(SYLLABLE_READING, syllable);
-}
+const TONE_SUFFIXES = ['', 'ˊ', 'ˇ', 'ˋ', '˙'] as const;
 
-/** 這張卡能不能進整列播放（不合法的舊卡會被跳過，但不會被刪掉）。 */
-export function isLegalCard(card: Card): boolean {
-    return isLegalCells(card.cells);
-}
-
-/** 整列播放要念的代讀漢字；不合法就回傳 null。 */
-export function readingOf(cells: Cells): string | null {
+/**
+ * **整句播放**要念的漢字。
+ *
+ * 為什麼不能像單張那樣「查不到就送注音字串」：整句是一個 utterance，
+ * 中間混一段注音字串會把連讀整個打斷（引擎會改用逐符號念那一段）。
+ * 所以這裡查不到精確音節時，退而求其次用**同一個 base 的任一聲調**的漢字——
+ * **念出來的聲調是錯的**，這是明知的近似，換來的是整句仍然是一句話。
+ * 連 base 都完全查不到（例：ㄈㄞ 這種國語沒有的音）才回傳 null，由呼叫端略過。
+ *
+ * 第五期起「合法性」不再擋任何操作（存、匯入、播放都不擋），
+ * 這個函式只影響**發音**，不影響小朋友存不存得進去。
+ */
+export function sentenceReadingOf(cells: Cells): string | null {
     const syllable = toSyllable(cells);
     if (!syllable) return null;
-    return SYLLABLE_READING[syllable] ?? null;
+    const exact = SYLLABLE_READING[syllable];
+    if (exact) return exact;
+    const base = syllable.replace(/[ˊˇˋ˙]$/, '');
+    for (const suffix of TONE_SUFFIXES) {
+        const hit = SYLLABLE_READING[base + suffix];
+        if (hit) return hit;
+    }
+    return null;
 }
 
 export function newCardId(): string {
@@ -84,11 +89,11 @@ export function newCardId(): string {
  * 規則：`version` 必須是 1，每張卡的 `cells` 四欄值皆合法符號或 null。
  * 任何一項不合就整份退回 null（呼叫端閃紅框、不動現有 deck）。
  *
- * `requireLegalSyllables` 是**匯入才開**的第二道關：音節必須查得到代讀漢字。
- * 讀 localStorage 時刻意關掉——第二期之前存的不合法舊卡要**保留但標示**，
- * 不能因為多了一張怪卡就把小朋友整組卡片當成壞資料丟掉。
+ * **只檢查資料形狀，不檢查「這個音國語有沒有」**：第五期起合法性不再擋任何操作
+ * （根因是代讀表本來就有洞——ㄅㄞˊ／ㄉㄧ˙ 這些真的存在的音都查不到），
+ * 查不到只影響發音走哪條路，不該讓小朋友存不進去或匯不進來。
  */
-export function parseDeck(raw: unknown, requireLegalSyllables = false): Deck | null {
+export function parseDeck(raw: unknown): Deck | null {
     if (!raw || typeof raw !== 'object') return null;
     const d = raw as Record<string, unknown>;
     if (d.version !== DECK_VERSION) return null;
@@ -100,16 +105,15 @@ export function parseDeck(raw: unknown, requireLegalSyllables = false): Deck | n
         const c = item as Record<string, unknown>;
         if (!isValidCells(c.cells)) return null;
         const cells = normalizeCells(c.cells);
-        if (requireLegalSyllables && !isLegalCells(cells)) return null;
         const id = typeof c.id === 'string' && c.id ? c.id : newCardId();
         cards.push({ id, cells });
     }
     return { version: DECK_VERSION, cards };
 }
 
-export function parseDeckJson(text: string, requireLegalSyllables = false): Deck | null {
+export function parseDeckJson(text: string): Deck | null {
     try {
-        return parseDeck(JSON.parse(text), requireLegalSyllables);
+        return parseDeck(JSON.parse(text));
     } catch {
         return null;
     }

@@ -8,7 +8,7 @@ import {
     type DragEndEvent
 } from '@dnd-kit/core';
 import { SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable';
-import { isLegalCard, type Card } from '@/lib/deck';
+import type { Card } from '@/lib/deck';
 import { DANGER, LINE, PAPER2, SLOT_COLOR, STRIP_GLOW, WHITE, YELLOW, YELLOW_DEEP, YELLOW_SOFT } from '@/lib/palette';
 import { ImportIcon, PlayAllIcon, SaveIcon, StopIcon } from './Icons';
 import { CARD_H, CARD_W, MiniCard } from './MiniCard';
@@ -138,7 +138,6 @@ export function SentenceStrip({
                                 selected={card.id === selectedId}
                                 playing={card.id === playingId}
                                 flash={card.id === flashId}
-                                illegal={!isLegalCard(card)}
                                 locked={running}
                                 onSelect={onSelect}
                                 onDelete={onDelete}

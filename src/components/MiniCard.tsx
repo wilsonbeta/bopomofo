@@ -3,8 +3,9 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { TONE_1, type Cells, type Slot } from '@/lib/bopomofo';
 import { ANIM_MS } from '@/lib/config';
-import { DANGER, INK, LINE, MUTE, SLOT_COLOR, WHITE, YELLOW, YELLOW_SOFT } from '@/lib/palette';
+import { INK, LINE, MUTE, SLOT_COLOR, WHITE, YELLOW, YELLOW_SOFT } from '@/lib/palette';
 import { useStageScale } from './Stage';
+import { TONE_LIGHT } from './SyllableBoard';
 import { CloseIcon } from './Icons';
 
 export const CARD_W = 92;
@@ -37,15 +38,13 @@ export interface MiniCardProps {
     playing: boolean;
     /** 剛儲存過，做一次回饋彈跳。 */
     flash: boolean;
-    /** 音節查不到代讀漢字（第二期之前存的舊卡）：保留但標紅，整列播放會跳過。 */
-    illegal: boolean;
     /** 播放中要禁用拖曳與刪除。 */
     locked: boolean;
     onSelect: (id: string) => void;
     onDelete: (id: string) => void;
 }
 
-export function MiniCard({ id, cells, selected, playing, flash, illegal, locked, onSelect, onDelete }: MiniCardProps) {
+export function MiniCard({ id, cells, selected, playing, flash, locked, onSelect, onDelete }: MiniCardProps) {
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
         id,
         disabled: locked
@@ -62,12 +61,10 @@ export function MiniCard({ id, cells, selected, playing, flash, illegal, locked,
     if (cells.final) stack.push({ slot: 'final', symbol: cells.final });
     // 課本一聲不標；ˉ 只在主字格當「我按到了」的輸入回饋。
     const tone = cells.tone && cells.tone !== TONE_1 ? cells.tone : null;
+    /** 課本排法：輕聲的點在音節**正上方**，其他聲調在右側。與字格同一條規則。 */
+    const light = cells.tone === TONE_LIGHT;
 
-    const border = illegal
-        ? `2px solid ${DANGER}`
-        : selected
-          ? `2px solid ${INK}`
-          : `1.5px solid ${LINE}`;
+    const border = selected ? `2px solid ${INK}` : `1.5px solid ${LINE}`;
 
     /**
      * 外層放拖曳、內層放動畫——**兩層不能合併**。
@@ -82,7 +79,7 @@ export function MiniCard({ id, cells, selected, playing, flash, illegal, locked,
             data-card-id={id}
             data-card-selected={selected ? 'true' : 'false'}
             data-card-playing={playing ? 'true' : 'false'}
-            data-card-illegal={illegal ? 'true' : 'false'}
+            data-card-tone-position={light ? 'top' : 'right'}
             {...attributes}
             {...listeners}
             onClick={() => onSelect(id)}
@@ -108,22 +105,30 @@ export function MiniCard({ id, cells, selected, playing, flash, illegal, locked,
                     border,
                     boxShadow: playing ? `0 0 0 4px ${YELLOW}` : 'none',
                     display: 'flex',
+                    flexDirection: light ? 'column' : 'row',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: 4
+                    gap: light ? 0 : 4
                 }}
                 animate={flash ? { scale: [1, 1.12, 1] } : { scale: playing ? 1.06 : 1 }}
                 transition={{ duration: D, ease: 'easeOut' }}
             >
-                {/* 課本排法：聲母／介音／韻母垂直堆疊，聲調在右側偏中 */}
+                {/* 輕聲：點在符號堆疊上方置中。其他聲調：在右側偏中。 */}
+                {light && (
+                    <div data-mini-tone-top="true" style={{ lineHeight: 1 }}>
+                        <Glyph slot="tone" symbol={TONE_LIGHT} size={TONE_GLYPH} />
+                    </div>
+                )}
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
                     {stack.map((g) => (
                         <Glyph key={g.slot} slot={g.slot} symbol={g.symbol} size={GLYPH} />
                     ))}
                 </div>
-                <div style={{ width: TONE_COL, flexShrink: 0 }}>
-                    {tone && <Glyph slot="tone" symbol={tone} size={TONE_GLYPH} />}
-                </div>
+                {!light && (
+                    <div style={{ width: TONE_COL, flexShrink: 0 }}>
+                        {tone && <Glyph slot="tone" symbol={tone} size={TONE_GLYPH} />}
+                    </div>
+                )}
             </motion.div>
 
             {!locked && (

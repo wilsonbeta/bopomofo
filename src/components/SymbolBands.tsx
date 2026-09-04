@@ -1,6 +1,6 @@
 import { TONES, slotOf, type Slot } from '@/lib/bopomofo';
 import { SLOT_COLOR, SLOT_TINT } from '@/lib/palette';
-import { CELL, CELL_GAP } from './SyllableBoard';
+import { CELL, CELL_GAP, COLUMN_TOP_PAD } from './SyllableBoard';
 
 /**
  * 三條符號帶。每條高 104、彼此間距 14——與左邊三格的節距一模一樣，
@@ -92,7 +92,7 @@ export function SymbolBands({ onPress }: { onPress: (symbol: string) => void }) 
     return (
         <div
             data-testid="symbol-bands"
-            style={{ display: 'flex', flexDirection: 'column', gap: BAND_GAP, flexGrow: 1, paddingTop: 2 }}
+            style={{ display: 'flex', flexDirection: 'column', gap: BAND_GAP, flexGrow: 1, paddingTop: COLUMN_TOP_PAD }}
         >
             <Band slot="initial">
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

@@ -3,7 +3,7 @@ import { ActionRow } from '@/components/ActionRow';
 import { SentenceStrip } from '@/components/SentenceStrip';
 import { Stage } from '@/components/Stage';
 import { SymbolBands } from '@/components/SymbolBands';
-import { SyllableBoard } from '@/components/SyllableBoard';
+import { COLUMN_TOP_PAD, SyllableBoard } from '@/components/SyllableBoard';
 import {
     CLEAR_ORDER,
     CODE_TO_SYMBOL,
@@ -14,19 +14,17 @@ import {
     type Cells,
     type Slot
 } from '@/lib/bopomofo';
-import { ANIM_MS, BOUNDARY_FALLBACK_MS, IMPORT_ERROR_MS, SENTENCE_SEPARATOR, SHAKE_MS, SPEAK_ON_KEY } from '@/lib/config';
+import { ANIM_MS, BOUNDARY_FALLBACK_MS, IMPORT_ERROR_MS, SENTENCE_SEPARATOR, SPEAK_ON_KEY } from '@/lib/config';
 import {
     deckToJson,
     downloadJson,
     exportFilename,
-    isLegalCard,
-    isLegalCells,
     loadDeck,
     moveCard,
     newCardId,
     parseDeckJson,
-    readingOf,
     saveDeck,
+    sentenceReadingOf,
     type Card
 } from '@/lib/deck';
 import { LINE, PAPER, SLOT_COLOR, WHITE } from '@/lib/palette';
@@ -78,8 +76,6 @@ export default function App() {
     const [importError, setImportError] = useState(false);
     /** 整列播放拿不到可用的 onboundary 時，整列一起淡發光（不假裝逐卡同步）。 */
     const [deckGlow, setDeckGlow] = useState(false);
-    /** 存到不合法音節時，字格搖頭。 */
-    const [shake, setShake] = useState(false);
     /**
      * localStorage 讀完了沒。
      *
@@ -207,9 +203,17 @@ export default function App() {
             stopPlayback();
             return;
         }
-        const cards = deckRef.current.filter(isLegalCard);
-        if (!cards.length) return;
-        const readings = cards.map((c) => readingOf(c.cells) as string);
+        /**
+         * 第五期起不再因為「不合法」跳過任何卡。這裡只會漏掉**連近似漢字都湊不出來**的卡
+         * （base 在代讀表裡完全沒有任何聲調，例如 ㄈㄞ 這種國語沒有的音）——
+         * 那種卡沒有東西可以念進句子裡，只能不放進這一句。
+         */
+        const speakable = deckRef.current
+            .map((c) => ({ card: c, reading: sentenceReadingOf(c.cells) }))
+            .filter((x): x is { card: Card; reading: string } => x.reading !== null);
+        if (!speakable.length) return;
+        const cards = speakable.map((x) => x.card);
+        const readings = speakable.map((x) => x.reading);
         const { text, offsets } = buildSentence(readings);
 
         const signal = newSignal();
@@ -304,23 +308,16 @@ export default function App() {
         setTimeout(() => setFlashId((cur) => (cur === id ? null : cur)), ANIM_MS + 40);
     }, []);
 
-    /** 存不進去時的回饋：字格左右搖頭＋邊框短暫變紅，不彈任何文字。 */
-    const rejectSave = useCallback(() => {
-        setShake(true);
-        setTimeout(() => setShake(false), SHAKE_MS);
-    }, []);
-
     /**
      * 有選中＝覆寫該卡並保持選中；沒選中＝存成新卡加在最後。字格都不清空。
-     * 音節查不到代讀漢字（例：ㄈㄞ）就不存，改成搖頭——這張表就是「國語有沒有這個音」的判準。
+     *
+     * **第五期起不再擋任何音節。** 舊版用「代讀漢字表查不查得到」當合法性判準，
+     * 但那張表本來就有洞（ㄅㄞˊ 這種破音字第二讀音、ㄉㄧ˙ 這種詞裡才出現的輕聲），
+     * 於是小朋友打得出來的字反而存不進去。查不到現在只影響**發音走哪條路**。
      */
     const saveCard = useCallback(() => {
         const current = cellsRef.current;
         if (isEmpty(current)) return;
-        if (!isLegalCells(current)) {
-            rejectSave();
-            return;
-        }
         const sel = selectedRef.current;
         if (sel && deckRef.current.some((c) => c.id === sel)) {
             setDeck((prev) => prev.map((c) => (c.id === sel ? { ...c, cells: current } : c)));
@@ -330,7 +327,7 @@ export default function App() {
         const card: Card = { id: newCardId(), cells: current };
         setDeck((prev) => [...prev, card]);
         flash(card.id);
-    }, [flash, rejectSave]);
+    }, [flash]);
 
     /** 點卡片：已選中的再點一次＝取消選中；否則載入字格＋選中＋立刻念一次。 */
     const selectCard = useCallback(
@@ -369,8 +366,8 @@ export default function App() {
         async (file: File) => {
             let parsed = null;
             try {
-                // 第二個參數＝匯入才開的嚴格關：任何一張音節不合法就整份拒收。
-                parsed = parseDeckJson(await file.text(), true);
+                // 只驗資料形狀（version、四格的值）；不再驗「這個音國語有沒有」。
+                parsed = parseDeckJson(await file.text());
             } catch {
                 parsed = null;
             }
@@ -483,11 +480,11 @@ export default function App() {
                             gap: 20,
                             alignItems: 'flex-start',
                             flexShrink: 0,
-                            // 與右欄 SymbolBands 的 paddingTop 相同，三格與三條帶的中線才會完全重合。
-                            paddingTop: 2
+                            // 與右欄 SymbolBands 的 paddingTop 用同一個常數，三格與三條帶的中線才會完全重合。
+                            paddingTop: COLUMN_TOP_PAD
                         }}
                     >
-                        <SyllableBoard cells={cells} active={active} finished={finished} shake={shake} />
+                        <SyllableBoard cells={cells} active={active} finished={finished} />
                         <ActionRow
                             playing={playing}
                             onPlay={() => void play()}

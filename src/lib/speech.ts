@@ -1,6 +1,7 @@
 'use client';
 
 import {
+    ASPIRATED_INITIALS,
     AUTO_FALLBACK_TO_CHAR_READING,
     WHOLE_TOKEN_USE_HANZI_READING,
     PREFERRED_VOICE_PATTERNS,
@@ -85,14 +86,32 @@ export function buildTokens(cells: Cells, useCharReading: boolean): SpeechToken[
     return tokens;
 }
 
+const LIGHT_TONE = '˙';
+
+/** 找同 base 近似漢字時的聲調順序（輕聲本身已經查過了，不再列入）。 */
+const BASE_TONE_SUFFIXES = ['', 'ˊ', 'ˇ', 'ˋ'];
+
 /**
  * 整字 token 真正要送進引擎的文字。
- * 查得到代讀漢字就送漢字（發音才正確）；查不到才退回注音字串，讓引擎逐符號念。
- * 不論哪一種，畫面上顯示的永遠是四格注音，不會出現漢字。
+ *
+ * 兩層：查得到代讀漢字就送漢字（發音才正確）；查不到就送注音字串，
+ * 引擎解析得出來就念、解析不出來就退化成逐符號念（可接受的近似）。
+ * 唯一的例外是上面那條「送氣聲母 ＋ 輕聲＝無聲」——那不是近似，是沒有聲音，必須擋掉。
+ *
+ * 不論走哪一種，畫面上顯示的永遠是四格注音，不會出現漢字。
  */
 export function wholeTokenText(syllable: string): string {
     if (!WHOLE_TOKEN_USE_HANZI_READING) return syllable;
-    return SYLLABLE_READING[syllable] ?? syllable;
+    const exact = SYLLABLE_READING[syllable];
+    if (exact) return exact;
+    if (syllable.endsWith(LIGHT_TONE) && ASPIRATED_INITIALS.includes(syllable[0])) {
+        const base = syllable.slice(0, -1);
+        for (const suffix of BASE_TONE_SUFFIXES) {
+            const hit = SYLLABLE_READING[base + suffix];
+            if (hit) return hit;
+        }
+    }
+    return syllable;
 }
 
 function timeoutFor(text: string): number {

@@ -33,6 +33,27 @@ export const AUTO_FALLBACK_TO_CHAR_READING = true;
  */
 export const WHOLE_TOKEN_USE_HANZI_READING = true;
 
+/**
+ * 送氣聲母。**Meijia 對「送氣聲母 ＋ 輕聲」的注音字串會輸出純靜音。**
+ *
+ * 實測（第五期，399 個 base 各合成 `base` 與 `base˙` 兩次，比對去頭尾靜音後的長度）：
+ *
+ *   送 base˙ → **完全無聲**          64 個（16%）0.031 秒、峰值振幅 63（正常音節約 25000）
+ *   送 base˙ → 比 base 短（真輕聲）  155 個（39%）
+ *   送 base˙ → 與 base 等長（˙ 被忽略）173 個
+ *   送 base˙ → 比 base 長（退化逐符號）7 個
+ *
+ * 關鍵在那 64 個無聲的組成：**全部、而且只有**這六個送氣聲母開頭——
+ *   ㄆ 15／ㄊ 12／ㄔ 10／ㄘ 10／ㄎ 9／ㄑ 8
+ * 對應的不送氣聲母（ㄅ ㄉ ㄍ ㄐ ㄓ ㄗ）**一個都沒有**無聲。
+ * 所以這不是巧合也不是個案，是引擎對「送氣 + 輕聲」這個組合的固定行為。
+ *
+ * 因此整字 token 遇到「輕聲 ＋ 這六個聲母」時**不送注音字串**，
+ * 改用同一個 base 的代讀漢字——**聲調是錯的，但聽得到**。
+ * 取捨理由與 `AUTO_FALLBACK_TO_CHAR_READING` 同一條：**無聲比念錯嚴重**。
+ */
+export const ASPIRATED_INITIALS = 'ㄆㄊㄎㄑㄔㄘ';
+
 /** 敲鍵填入符號的當下，立刻念一次那個符號（單 utterance、不高亮）。 */
 export const SPEAK_ON_KEY = true;
 
@@ -82,6 +103,3 @@ export const SENTENCE_SEPARATOR: string = '';
 
 /** 整列播放開始後，等這麼久還沒收到任何 onboundary 就退回「整列淡發光」。 */
 export const BOUNDARY_FALLBACK_MS = 900;
-
-/** 存到不合法音節時，字格搖頭的時間。 */
-export const SHAKE_MS = 300;
