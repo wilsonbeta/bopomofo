@@ -49,3 +49,18 @@ export const TOKEN_GAP_MS = 180;
 
 /** 動畫長度上限（ms）。 */
 export const ANIM_MS = 260;
+
+/** 整列播放時，卡片與卡片之間的停頓。 */
+export const DECK_GAP_MS = 500;
+
+/** localStorage key：卡片組。 */
+export const DECK_STORAGE_KEY = 'bopomofo.deck.v1';
+
+/** localStorage key：右欄要顯示鍵盤還是海報。 */
+export const RIGHT_PANE_STORAGE_KEY = 'bopomofo.rightpane.v1';
+
+/** 匯入失敗時紅框閃爍的時間。 */
+export const IMPORT_ERROR_MS = 600;
+
+/** 迷你卡片相對於主字格的縮放比例。 */
+export const CARD_SCALE = 0.35;
