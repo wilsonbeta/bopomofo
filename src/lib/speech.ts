@@ -2,6 +2,7 @@
 
 import {
     AUTO_FALLBACK_TO_CHAR_READING,
+    WHOLE_TOKEN_USE_HANZI_READING,
     PREFERRED_VOICE_PATTERNS,
     SYMBOL_READING_MODE,
     TOKEN_GAP_MS,
@@ -10,6 +11,7 @@ import {
     UTTERANCE_TIMEOUT_PER_CHAR_MS
 } from './config';
 import { SYMBOL_CHAR_READING, TONE_WORD, TONE_1, type Cells, type Slot, toSyllable } from './bopomofo';
+import { SYLLABLE_READING } from './syllable-reading';
 
 export function isSupported(): boolean {
     return typeof window !== 'undefined' && 'speechSynthesis' in window;
@@ -78,8 +80,18 @@ export function buildTokens(cells: Cells, useCharReading: boolean): SpeechToken[
     if (cells.final) tokens.push({ kind: 'final', text: reading(cells.final) });
     tokens.push({ kind: 'tone', text: TONE_WORD[cells.tone ?? TONE_1] });
     const syllable = toSyllable(cells);
-    if (syllable) tokens.push({ kind: 'whole', text: syllable });
+    if (syllable) tokens.push({ kind: 'whole', text: wholeTokenText(syllable) });
     return tokens;
+}
+
+/**
+ * 整字 token 真正要送進引擎的文字。
+ * 查得到代讀漢字就送漢字（發音才正確）；查不到才退回注音字串，讓引擎逐符號念。
+ * 不論哪一種，畫面上顯示的永遠是四格注音，不會出現漢字。
+ */
+export function wholeTokenText(syllable: string): string {
+    if (!WHOLE_TOKEN_USE_HANZI_READING) return syllable;
+    return SYLLABLE_READING[syllable] ?? syllable;
 }
 
 function timeoutFor(text: string): number {

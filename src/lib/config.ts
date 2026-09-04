@@ -22,6 +22,17 @@ export const SYMBOL_READING_MODE: 'symbol' | 'char' = 'symbol';
  */
 export const AUTO_FALLBACK_TO_CHAR_READING = true;
 
+/**
+ * 整字 token 是否改送「代讀漢字」給語音引擎（漢字只進引擎，畫面永遠不顯示）。
+ *
+ * 實測依據：Meijia 對注音字串的整字解析**只對一部分音節有效**，含 ㄨ／ㄩ 的幾乎全滅：
+ *   ㄅㄚˇ 0.248s == 把 0.248s（相同，OK）
+ *   ㄔㄨㄤˋ 0.723s vs 創 0.365s（約兩倍長，退化成逐符號念）
+ *   ㄨㄛˇ 0.436s vs 我 0.285s／ㄒㄩㄝˊ 0.797s vs 學 0.423s（同樣退化）
+ * 所以整字改查 SYLLABLE_READING 表；查不到才退回注音字串。
+ */
+export const WHOLE_TOKEN_USE_HANZI_READING = true;
+
 /** 敲鍵填入符號的當下，立刻念一次那個符號（單 utterance、不高亮）。 */
 export const SPEAK_ON_KEY = true;
 
