@@ -1,99 +1,102 @@
-'use client';
-
-import { Box, Flex } from '@chakra-ui/react';
 import { motion } from 'framer-motion';
 import type { Cells, Slot } from '@/lib/bopomofo';
 import { ANIM_MS } from '@/lib/config';
-import { EMPTY_BORDER, SLOT_COLOR } from '@/lib/palette';
+import { DANGER, LINE, SLOT_COLOR, SLOT_TINT, WHITE, WHOLE_GLOW } from '@/lib/palette';
 
-const MotionBox = motion.create(Box);
-const D = ANIM_MS / 1000;
+/**
+ * 字格尺寸。三格 104 直排、間距 14 → 節距 118，
+ * 與右邊三條符號帶（高 104、間距 14）**完全相同**，所以中線對得上（驗收 §4-5）。
+ * 全域 `box-sizing: border-box`，3px 邊框不會把格子撐成 110。
+ */
+export const CELL = 104;
+export const TONE_CELL = 76;
+export const CELL_GAP = 14;
 
 interface CellProps {
     slot: Slot;
     symbol: string | null;
     highlighted: boolean;
+    whole: boolean;
     size: number;
-    /** 聲調符號（ˉ ˊ ˇ ˋ ˙）的字面比其他注音小很多，要放大補回來。 */
-    glyphScale?: number;
 }
 
-function Cell({ slot, symbol, highlighted, size, glyphScale = 0.62 }: CellProps) {
-    const c = SLOT_COLOR[slot];
+function Cell({ slot, symbol, highlighted, whole, size }: CellProps) {
+    const color = SLOT_COLOR[slot];
+    const on = whole || highlighted;
+    // 聲調符號（ˉ ˊ ˇ ˋ ˙）的字面比其他注音小很多，比例調小一點反而看起來一樣大。
+    const fontSize = Math.round(size * (slot === 'tone' ? 0.5 : 0.62));
     return (
-        <MotionBox
+        <motion.div
             data-slot={slot}
             data-symbol={symbol ?? ''}
-            data-highlighted={highlighted ? 'true' : 'false'}
-            width={`${size}px`}
-            height={`${size}px`}
-            borderRadius="18px"
-            display="flex"
-            alignItems="center"
-            justifyContent="center"
-            fontWeight="700"
-            lineHeight="1"
-            userSelect="none"
-            position="relative"
-            zIndex={highlighted ? 2 : 1}
+            data-highlighted={on ? 'true' : 'false'}
             style={{
-                fontSize: `${size * glyphScale}px`,
-                border: symbol ? `4px solid ${c.base}` : `4px dashed ${EMPTY_BORDER}`,
-                color: highlighted ? c.ink : c.base,
-                background: highlighted ? c.bright : 'transparent'
+                width: size,
+                height: size,
+                borderRadius: 22,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 700,
+                fontSize,
+                lineHeight: 1,
+                userSelect: 'none',
+                position: 'relative',
+                zIndex: on ? 2 : 1,
+                background: symbol ? (on ? color : SLOT_TINT[slot]) : 'transparent',
+                color: on ? WHITE : color,
+                border: symbol ? `3px solid ${color}` : `3px dashed ${LINE}`
             }}
-            animate={{ scale: highlighted ? 1.4 : 1 }}
-            transition={{ duration: D, ease: 'easeOut' }}
+            animate={{ scale: highlighted && !whole ? 1.12 : 1 }}
+            transition={{ duration: ANIM_MS / 1000, ease: 'easeOut' }}
         >
             {symbol ?? ''}
-        </MotionBox>
+        </motion.div>
     );
 }
 
 export interface SyllableBoardProps {
     cells: Cells;
-    /** 目前高亮哪一格；'whole' = 四格一起脈動＋外框發光。 */
+    /** 目前高亮哪一格；'whole' = 四格一起＋黃色外光。 */
     active: Slot | 'whole' | null;
     /** 念完整串後的收尾彈跳。 */
     finished: boolean;
     /** 存到不合法音節：左右搖頭＋邊框短暫變紅，不彈任何文字。 */
-    shake?: boolean;
+    shake: boolean;
 }
 
-export function SyllableBoard({ cells, active, finished, shake = false }: SyllableBoardProps) {
+export function SyllableBoard({ cells, active, finished, shake }: SyllableBoardProps) {
     const whole = active === 'whole';
-    const size = 132;
-    const glow = whole
-        ? '0 0 0 6px #FFD43B, 0 0 34px 10px rgba(255, 212, 59, 0.75)'
-        : shake
-          ? '0 0 0 5px #E03131'
-          : '0 0 0 0 rgba(0,0,0,0)';
+    const glow = whole ? WHOLE_GLOW : shake ? `0 0 0 5px ${DANGER}` : '0 0 0 0 rgba(0, 0, 0, 0)';
     return (
-        <MotionBox
+        <motion.div
             data-testid="syllable-board"
             data-shake={shake ? 'true' : 'false'}
-            padding="18px"
-            borderRadius="28px"
-            style={{ boxShadow: glow }}
+            style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 18,
+                padding: '0 10px',
+                borderRadius: 28,
+                boxShadow: glow
+            }}
             animate={
                 shake
                     ? { x: [0, -10, 10, -6, 6, 0] }
                     : whole
-                      ? { scale: [1, 1.08, 1] }
+                      ? { scale: [1, 1.04, 1] }
                       : finished
                         ? { y: [0, -14, 0] }
-                        : { scale: 1, y: 0, x: 0 }
+                        : { scale: 1, x: 0, y: 0 }
             }
-            transition={{ duration: D, ease: 'easeOut' }}
+            transition={{ duration: ANIM_MS / 1000, ease: 'easeOut' }}
         >
-            <Flex align="center" gap="18px">
-                <Flex direction="column" gap="20px">
-                    <Cell slot="initial" symbol={cells.initial} highlighted={whole || active === 'initial'} size={size} />
-                    <Cell slot="medial" symbol={cells.medial} highlighted={whole || active === 'medial'} size={size} />
-                    <Cell slot="final" symbol={cells.final} highlighted={whole || active === 'final'} size={size} />
-                </Flex>
-                <Cell slot="tone" symbol={cells.tone} highlighted={whole || active === 'tone'} size={size * 0.72} />
-            </Flex>
-        </MotionBox>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: CELL_GAP }}>
+                <Cell slot="initial" symbol={cells.initial} highlighted={active === 'initial'} whole={whole} size={CELL} />
+                <Cell slot="medial" symbol={cells.medial} highlighted={active === 'medial'} whole={whole} size={CELL} />
+                <Cell slot="final" symbol={cells.final} highlighted={active === 'final'} whole={whole} size={CELL} />
+            </div>
+            <Cell slot="tone" symbol={cells.tone} highlighted={active === 'tone'} whole={whole} size={TONE_CELL} />
+        </motion.div>
     );
 }

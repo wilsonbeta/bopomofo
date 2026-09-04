@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="zh-TW">
+    <head>
+        <meta charset="utf-8" />
+        <!-- viewport-fit=cover：全螢幕時內容鋪到瀏海底下，安全區靠 env(safe-area-inset-*) 讓出來 -->
+        <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+        />
+        <!-- 加到主畫面後點開＝獨立 app：沒有網址列、沒有分頁列 -->
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="ㄅㄆㄇ" />
+        <meta name="theme-color" content="#FAF7F1" />
+        <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+        <link rel="apple-touch-icon" href="./icon-180.png" />
+        <title>ㄅㄆㄇ</title>
+    </head>
+    <body>
+        <div id="root"></div>
+        <script type="module" src="/src/main.tsx"></script>
+    </body>
+</html>

@@ -1,11 +1,8 @@
-'use client';
-
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Box, Flex } from '@chakra-ui/react';
-import { motion } from 'framer-motion';
-import { CardStrip } from '@/components/CardStrip';
-import { SaveIcon } from '@/components/Icons';
-import { RightPane, type PaneMode } from '@/components/RightPane';
+import { ActionRow } from '@/components/ActionRow';
+import { SentenceStrip } from '@/components/SentenceStrip';
+import { Stage } from '@/components/Stage';
+import { SymbolBands } from '@/components/SymbolBands';
 import { SyllableBoard } from '@/components/SyllableBoard';
 import {
     CLEAR_ORDER,
@@ -17,15 +14,7 @@ import {
     type Cells,
     type Slot
 } from '@/lib/bopomofo';
-import {
-    ANIM_MS,
-    BOUNDARY_FALLBACK_MS,
-    IMPORT_ERROR_MS,
-    RIGHT_PANE_STORAGE_KEY,
-    SENTENCE_SEPARATOR,
-    SHAKE_MS,
-    SPEAK_ON_KEY
-} from '@/lib/config';
+import { ANIM_MS, BOUNDARY_FALLBACK_MS, IMPORT_ERROR_MS, SENTENCE_SEPARATOR, SHAKE_MS, SPEAK_ON_KEY } from '@/lib/config';
 import {
     deckToJson,
     downloadJson,
@@ -40,7 +29,7 @@ import {
     saveDeck,
     type Card
 } from '@/lib/deck';
-import { PAGE_BG, SLOT_COLOR } from '@/lib/palette';
+import { LINE, PAPER, SLOT_COLOR, WHITE } from '@/lib/palette';
 import {
     buildSentence,
     buildTokens,
@@ -53,16 +42,29 @@ import {
     waitForVoices
 } from '@/lib/speech';
 
-const MotionBox = motion.create(Box);
+/** 左上角的品牌字：三個注音、三個顏色，不放任何其他東西。 */
+function Brand() {
+    return (
+        <div
+            data-testid="brand"
+            style={{
+                display: 'flex',
+                alignItems: 'baseline',
+                gap: 4,
+                fontWeight: 700,
+                fontSize: 22,
+                letterSpacing: 2,
+                userSelect: 'none'
+            }}
+        >
+            <span style={{ color: SLOT_COLOR.initial }}>ㄅ</span>
+            <span style={{ color: SLOT_COLOR.medial }}>ㄆ</span>
+            <span style={{ color: SLOT_COLOR.final }}>ㄇ</span>
+        </div>
+    );
+}
 
-/** 三欄各包一層很淡的底，給「這裡是另一個功能區」的心理暗示，但不搶戲。 */
-const PANEL = {
-    background: 'rgba(0, 0, 0, 0.03)',
-    borderRadius: '24px',
-    padding: '20px'
-} as const;
-
-export default function Page() {
+export default function App() {
     const [cells, setCells] = useState<Cells>(EMPTY_CELLS);
     const [active, setActive] = useState<Slot | 'whole' | null>(null);
     const [finished, setFinished] = useState(false);
@@ -74,11 +76,10 @@ export default function Page() {
     const [flashId, setFlashId] = useState<string | null>(null);
     const [deckRunning, setDeckRunning] = useState(false);
     const [importError, setImportError] = useState(false);
-    /** 整列播放拿不到可用的 onboundary 時，整欄一起淡發光（不假裝逐卡同步）。 */
+    /** 整列播放拿不到可用的 onboundary 時，整列一起淡發光（不假裝逐卡同步）。 */
     const [deckGlow, setDeckGlow] = useState(false);
     /** 存到不合法音節時，字格搖頭。 */
     const [shake, setShake] = useState(false);
-    const [paneMode, setPaneMode] = useState<PaneMode>('keyboard');
     /**
      * localStorage 讀完了沒。
      *
@@ -99,7 +100,7 @@ export default function Page() {
     selectedRef.current = selectedId;
     const runningRef = useRef(false);
 
-    /* ---------- 載入：語音、deck、右欄模式 ---------- */
+    /* ---------- 載入：語音、deck ---------- */
 
     useEffect(() => {
         let alive = true;
@@ -115,15 +116,8 @@ export default function Page() {
         };
     }, []);
 
-    // localStorage 只能在 client 讀，所以放 effect 裡；直接在 render 讀會造成 hydration mismatch。
     useEffect(() => {
         setDeck(loadDeck());
-        try {
-            const m = window.localStorage.getItem(RIGHT_PANE_STORAGE_KEY);
-            if (m === 'poster' || m === 'keyboard') setPaneMode(m);
-        } catch {
-            /* 讀不到就用預設 */
-        }
         setHydrated(true);
     }, []);
 
@@ -132,23 +126,13 @@ export default function Page() {
         if (hydrated) saveDeck(deck);
     }, [deck, hydrated]);
 
-    const changePaneMode = useCallback((m: PaneMode) => {
-        setPaneMode(m);
-        try {
-            window.localStorage.setItem(RIGHT_PANE_STORAGE_KEY, m);
-        } catch {
-            /* 存不進去就算了 */
-        }
-    }, []);
-
     /* ---------- 播放：單張與整列共用同一顆取消信號 ---------- */
 
     /**
      * 停止所有播放並把高亮狀態清乾淨。
      *
-     * §5-2 的重點：`active`（字格高亮）與 `playingId`（卡片高亮）是兩套 state，
-     * 但**只有一顆 signal**。停止的責任全放在這個函式裡——被中斷的迴圈只負責 return、
-     * 不再碰任何 state，所以不會有「cancel 後殘留高亮」或兩邊互相覆寫的情形。
+     * `active`（字格高亮）與 `playingId`（卡片高亮）是兩套 state，但**只有一顆 signal**。
+     * 停止的責任全放在這個函式裡——被中斷的迴圈只負責 return、不再碰任何 state。
      */
     const stopPlayback = useCallback(() => {
         signalRef.current.cancelled = true;
@@ -215,7 +199,6 @@ export default function Page() {
      * 兩件事被 `SENTENCE_SEPARATOR` 綁在一起（都是實測結論，見 config 註解）：
      * 有分隔符 → 三聲不會被連讀變調，而且 onboundary 一字一個、間隔均勻 → **逐卡高亮**；
      * 沒有分隔符 → 會變調，且 onboundary 擠在句尾 → 退回**整列淡發光**，不假裝同步。
-     * 就算有分隔符，事件沒來（換瀏覽器／換語音）也一樣退回發光。
      *
      * 不合法的舊卡直接跳過，但留在畫面上（紅框標示），不刪。
      */
@@ -307,7 +290,7 @@ export default function Page() {
         });
     }, []);
 
-    /** Esc：全清字格並取消選中。順手把還在跑的播放停掉，免得字格空了還在亮。 */
+    /** Esc／清除鈕：全清字格並取消選中。順手把還在跑的播放停掉，免得字格空了還在亮。 */
     const clearAll = useCallback(() => {
         stopPlayback();
         setCells(EMPTY_CELLS);
@@ -382,25 +365,28 @@ export default function Page() {
     }, []);
 
     /** 合法就整份取代；不合法閃紅框 600ms，什麼都不改。 */
-    const importDeck = useCallback(async (file: File) => {
-        let parsed = null;
-        try {
-            // 第二個參數＝匯入才開的嚴格關：任何一張音節不合法就整份拒收。
-            parsed = parseDeckJson(await file.text(), true);
-        } catch {
-            parsed = null;
-        }
-        if (!parsed) {
-            setImportError(true);
-            setTimeout(() => setImportError(false), IMPORT_ERROR_MS);
-            return;
-        }
-        stopPlayback();
-        setDeck(parsed.cards);
-        setSelectedId(null);
-    }, [stopPlayback]);
+    const importDeck = useCallback(
+        async (file: File) => {
+            let parsed = null;
+            try {
+                // 第二個參數＝匯入才開的嚴格關：任何一張音節不合法就整份拒收。
+                parsed = parseDeckJson(await file.text(), true);
+            } catch {
+                parsed = null;
+            }
+            if (!parsed) {
+                setImportError(true);
+                setTimeout(() => setImportError(false), IMPORT_ERROR_MS);
+                return;
+            }
+            stopPlayback();
+            setDeck(parsed.cards);
+            setSelectedId(null);
+        },
+        [stopPlayback]
+    );
 
-    /* ---------- 鍵盤 ---------- */
+    /* ---------- 實體鍵盤（大千鍵位照常可用） ---------- */
 
     useEffect(() => {
         const onKeyDown = (e: KeyboardEvent) => {
@@ -438,21 +424,28 @@ export default function Page() {
         return () => window.removeEventListener('keydown', onKeyDown);
     }, [play, playAll, saveCard, backspace, clearAll, insert]);
 
-    /* ---------- 版面 ---------- */
+    /* ---------- 版面：品牌列 → 句子列 → 書頁 ---------- */
 
     return (
-        <Box minHeight="100vh" paddingY="34px" paddingX="16px" style={{ background: PAGE_BG }}>
-            <Flex
-                direction={{ base: 'column', lg: 'row' }}
-                align={{ base: 'center', lg: 'flex-start' }}
-                justify={{ base: 'center', lg: 'space-between' }}
-                gap={{ base: '26px', lg: '40px' }}
-                maxWidth="1400px"
-                marginX="auto"
+        <Stage>
+            <div
+                data-testid="app"
+                style={{
+                    width: '100%',
+                    height: '100%',
+                    background: PAPER,
+                    padding: '22px 28px 26px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 18,
+                    overflow: 'hidden'
+                }}
             >
-            {/* 左欄：卡片列表。窄螢幕排到最後（字格 → 鍵盤 → 列表）。 */}
-            <Box data-testid="panel-cards" order={{ base: 3, lg: 1 }} style={PANEL}>
-                <CardStrip
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 28 }}>
+                    <Brand />
+                </div>
+
+                <SentenceStrip
                     cards={deck}
                     selectedId={selectedId}
                     playingId={playingId}
@@ -467,96 +460,45 @@ export default function Page() {
                     onExport={exportDeck}
                     onImport={(f) => void importDeck(f)}
                 />
-            </Box>
 
-            {/* 中欄：字格＋按鈕。字格與按鈕列左緣對齊，不置中。 */}
-            <Flex
-                data-testid="panel-board"
-                order={{ base: 1, lg: 2 }}
-                direction="column"
-                align="flex-start"
-                gap="26px"
-                style={PANEL}
-            >
-                <SyllableBoard cells={cells} active={active} finished={finished} shake={shake} />
-
-                <Flex gap="14px" align="center">
-                    <MotionBox
-                        as="button"
-                        data-testid="play"
-                        aria-label="play"
-                        onClick={() => void play()}
-                        width="120px"
-                        height="88px"
-                        borderRadius="24px"
-                        display="flex"
-                        alignItems="center"
-                        justifyContent="center"
-                        cursor="pointer"
-                        style={{ border: 'none', background: playing ? '#FFD43B' : '#FFC078' }}
-                        whileTap={{ scale: 0.92 }}
-                        transition={{ duration: ANIM_MS / 1000 }}
-                    >
-                        <Box
-                            width="0"
-                            height="0"
-                            style={{
-                                borderTop: '26px solid transparent',
-                                borderBottom: '26px solid transparent',
-                                borderLeft: '42px solid #212529',
-                                marginLeft: '8px'
-                            }}
-                        />
-                    </MotionBox>
-
-                    <Box
-                        as="button"
-                        data-testid="save"
-                        aria-label="save"
-                        onClick={saveCard}
-                        width="88px"
-                        height="88px"
-                        borderRadius="24px"
-                        display="flex"
-                        alignItems="center"
-                        justifyContent="center"
-                        cursor="pointer"
+                {/* 書頁：左邊字格＋動作列，右邊三條符號帶 */}
+                <div
+                    data-testid="page"
+                    style={{
+                        display: 'flex',
+                        gap: 36,
+                        alignItems: 'flex-start',
+                        padding: '26px 28px',
+                        borderRadius: 30,
+                        background: WHITE,
+                        border: `2px solid ${LINE}`,
+                        flexGrow: 1,
+                        minHeight: 0
+                    }}
+                >
+                    <div
                         style={{
-                            border: `4px solid ${SLOT_COLOR.final.base}`,
-                            color: SLOT_COLOR.final.base,
-                            background: '#FFFFFF'
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 20,
+                            alignItems: 'flex-start',
+                            flexShrink: 0,
+                            // 與右欄 SymbolBands 的 paddingTop 相同，三格與三條帶的中線才會完全重合。
+                            paddingTop: 2
                         }}
                     >
-                        <SaveIcon size={44} />
-                    </Box>
-
-                    <Box
-                        as="button"
-                        data-testid="clear"
-                        aria-label="clear"
-                        onClick={clearAll}
-                        width="88px"
-                        height="88px"
-                        borderRadius="24px"
-                        cursor="pointer"
-                        style={{ border: `4px solid ${SLOT_COLOR.tone.base}`, background: '#FFFFFF' }}
-                    >
-                        <Box
-                            margin="0 auto"
-                            width="38px"
-                            height="6px"
-                            borderRadius="3px"
-                            style={{ background: SLOT_COLOR.tone.base }}
+                        <SyllableBoard cells={cells} active={active} finished={finished} shake={shake} />
+                        <ActionRow
+                            playing={playing}
+                            onPlay={() => void play()}
+                            onSave={saveCard}
+                            onClear={clearAll}
                         />
-                    </Box>
-                </Flex>
-            </Flex>
+                    </div>
 
-            {/* 右欄：鍵盤 ⇄ 海報 */}
-            <Box data-testid="panel-pane" order={{ base: 2, lg: 3 }} style={PANEL}>
-                <RightPane mode={paneMode} onModeChange={changePaneMode} onPress={insert} />
-            </Box>
-            </Flex>
-        </Box>
+                    <SymbolBands onPress={insert} />
+                </div>
+            </div>
+        </Stage>
     );
 }

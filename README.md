@@ -1,10 +1,10 @@
 # 注音卡拉 OK
 
-小朋友用鍵盤把注音填進「上／中／下」三格＋右邊聲調格，按 Enter 之後程式逐符號念出來，
-念到哪個符號，畫面上那一格就放大變色。
+小朋友用鍵盤（或直接點畫面上的符號帶）把注音填進「上／中／下」三格＋右邊聲調格，
+按 Enter 之後程式逐符號念出來，念到哪個符號，那一格就放大變色。
 
-拼好的音可以存成卡片排在最左欄：點卡片就念、拖曳排順序、整列連著念，
-卡片自動存在瀏覽器裡，也能匯出成 JSON 帶到別台電腦。
+拼好的音可以存成卡片排在上面那一列：點卡片就念、拖曳排順序、整列連著念，
+卡片自動存在瀏覽器裡，也能匯出成 JSON 帶到別台裝置。
 
 畫面**完全不出現中文字**，所有按鈕都是圖示。
 
@@ -12,22 +12,59 @@
 
 ```bash
 yarn install
-yarn dev
-# 開 http://localhost:3000
+yarn dev        # 開 http://localhost:3000/bopomofo/
 ```
 
-不需要後端、不需要資料庫、不需要網路。發聲用瀏覽器內建的 Web Speech API
-（`speechSynthesis`），語音來自 macOS 系統內建的中文語音。
+其他指令：
+
+```bash
+yarn build      # 型別檢查（tsc --noEmit）＋ 打包到 dist/
+yarn preview    # 用打包後的檔案起一個站：http://localhost:4173/bopomofo/
+```
+
+**注意網址結尾的 `/bopomofo/`**：`vite.config.ts` 的 `base` 設成 `/bopomofo/`（GitHub Pages
+的專案站台就在這個路徑底下），dev 與 preview 都照用同一個 base，免得「本機好好的、上線 404」。
+
+技術上是 **Vite + React 19 + TypeScript**，版面全部原生 CSS（一支 `src/styles.css` ＋
+元件的 inline style），動畫用 framer-motion、拖曳用 @dnd-kit。
+不需要後端、不需要資料庫、不需要網路，也不載任何網路字型。
+發聲用瀏覽器內建的 Web Speech API（`speechSynthesis`），語音來自系統內建的中文語音。
+
+## 怎麼部署（GitHub Pages）
+
+`.github/workflows/pages.yml` 已經寫好了：**push 到 `main` 就自動 build 並上線**，
+用的是 GitHub 官方的 `configure-pages` / `upload-pages-artifact` / `deploy-pages`，
+零 secret、零金鑰。
+
+第一次要在 GitHub 上開一次開關（只做一次）：
+
+1. repo → **Settings → Pages → Build and deployment → Source** 選 **GitHub Actions**。
+2. push 一次 `main`，或到 **Actions → Deploy to GitHub Pages → Run workflow** 手動觸發。
+3. 網址是 `https://<你的帳號>.github.io/bopomofo/`。
+
+> repo 必須是 **public**，否則免費方案不能開 Pages。
+> 換帳號或改 repo 名稱時，`vite.config.ts` 的 `base` 要跟著改成 `/<新的 repo 名>/`。
+
+## iPad：加到主畫面
+
+在 iPad 的 Safari 打開上面那個網址 → 分享 → **加入主畫面**。
+之後從主畫面點開就是**獨立 app**：沒有網址列、沒有分頁列，整個畫面就是一張書頁。
+
+- 橫著拿。畫面是固定 **1180×820** 的舞台等比縮放置中，**任何 iPad 都不會捲動、比例不變**
+  （1024×768、1180×820、1366×1024 都實測過）。
+- 舞台外的留白就是紙色 `#FAF7F1`，看不出邊界。
+- 瀏海／Home indicator 靠 `env(safe-area-inset-*)` 讓出來，狀態列是 black-translucent。
+- 圖示是 `public/icon-180.png`（彩色的「ㄅ」）。
 
 ## 怎麼玩
 
-- 鍵盤是**大千式（標準式）注音鍵盤**，依實體鍵位判斷，不受目前輸入法影響。
+- 實體鍵盤是**大千式（標準式）注音鍵盤**，依實體鍵位判斷，不受目前輸入法影響。
     - `1`=ㄅ `2`=ㄉ `3`=ˇ `4`=ˋ `5`=ㄓ `6`=ˊ `7`=˙ `8`=ㄚ `9`=ㄞ `0`=ㄢ `-`=ㄦ
     - `Q`=ㄆ `W`=ㄊ `E`=ㄍ `R`=ㄐ `T`=ㄔ `Y`=ㄗ `U`=ㄧ `I`=ㄛ `O`=ㄟ `P`=ㄣ
     - `A`=ㄇ `S`=ㄋ `D`=ㄎ `F`=ㄑ `G`=ㄕ `H`=ㄘ `J`=ㄨ `K`=ㄜ `L`=ㄠ `;`=ㄤ
     - `Z`=ㄈ `X`=ㄌ `C`=ㄏ `V`=ㄒ `B`=ㄖ `N`=ㄙ `M`=ㄩ `,`=ㄝ `.`=ㄡ `/`=ㄥ
 - 符號會依類別自動落格：聲母→上、介音→中、韻母→下、聲調→右。同類再敲一次＝取代該格。
-- 也可以直接用滑鼠點右欄的注音鍵盤／海報。
+- iPad 上沒有實體鍵盤也沒關係：**直接點右邊三條符號帶**，行為完全一樣。
 
 ### 快捷鍵
 
@@ -35,26 +72,41 @@ yarn dev
 |---|---|
 | `Space` | 一聲 |
 | `Enter` | 念目前的字格 |
-| `Shift+Enter` | 整列播放（＝左欄的 ▶▶） |
-| `Cmd/Ctrl+S` | 儲存成卡片（＝中欄的儲存鈕） |
+| `Shift+Enter` | 整列播放（＝句子列左邊的 ▶▶） |
+| `Cmd/Ctrl+S` | 儲存成卡片（＝字格底下的儲存鈕） |
 | `Backspace` | 清最後填的一格（聲調 → 下 → 中 → 上） |
 | `Esc` | 全清字格、取消選中、停止播放 |
 
-## 版面：三欄
+## 版面：一張書頁
 
-寬螢幕由左到右是**卡片列表｜字格＋按鈕｜鍵盤或海報**，最寬 1400px 置中，
-三欄各包一層很淡的底當功能區隔；窄螢幕改成上下堆疊，順序是**字格 → 鍵盤 → 列表**。
+由上到下三塊，全部塞在 1180×820 的舞台裡，不捲動：
 
-### 右欄：鍵盤模式 ⇄ 海報模式
+1. **品牌列**（高 28）：左上角小小的「ㄅㄆㄇ」三色字。
+2. **句子列**：左端 ▶▶ 圓鈕、中間橫向卡片列（最右邊永遠留一個虛線空位）、
+   右端匯出／匯入兩顆小鈕。整列播放中整條會亮起來、▶▶ 變成 ■。
+3. **書頁**（白底圓角）：
+   - 左邊是**字格**（三格 104 直排＋聲調格 76 在中格右側）與**動作列**（▶ 念一次／儲存／清除）。
+   - 右邊是**三條符號帶**：聲母（橘）、介音（綠，右端掛著紫色的聲調小區）、韻母（藍）。
+   - 三條帶的高度與間距（104 ＋ 14）跟左邊三格**完全相同**，所以「聲母帶對上格、
+     介音帶對中格、韻母帶對下格」——中線是排出來的，不是湊出來的（實測差 0.0px）。
 
-右欄頂端的兩段切換可以換排法，選了哪一種會記在瀏覽器裡，重開還在。
+顏色全部來自 `src/lib/palette.ts`，元件裡不寫死任何 hex：
+紙色 `#FAF7F1`、聲母 `#D9480F`、介音 `#2B8A3E`、韻母 `#1864AB`、聲調 `#862E9C`，
+各自的 8% 當底色；動作黃 `#FFD43B`。
 
-- **鍵盤模式**＝大千式實體鍵盤的排列，適合已經在學打字的孩子。
-- **海報模式**＝國語課本的注音符號表順序，依用途分四區（聲母／介音／韻母／聲調），
-  每一行是一組（ㄅㄆㄇㄈ、ㄉㄊㄋㄌ、…）。四區用該區顏色的淡底色塊與左側色條區隔，
-  沒有文字標題。
+### 為什麼要用「舞台縮放」
 
-兩種模式點下去的行為完全一樣，實體鍵盤在任何模式都能用。
+整個 app 是一個固定 1180×820 的 `<div>`，外層算出 `min(可用寬/1180, 可用高/820)`
+再整個 `transform: scale()` 置中——像遊戲畫面那樣。好處是**版面只要排一次**，
+所有 iPad 與桌機看到的比例完全一樣，不用寫任何斷點。
+
+代價有一個，已經修掉了：@dnd-kit 把「指標在螢幕上移動了幾 px」直接當成 CSS transform，
+在縮放過的舞台裡卡片會跟不上手指。`MiniCard` 把拖曳位移**除以舞台倍率**修正
+（`Stage.tsx` 的 `useStageScale()`），實測貼合誤差 0.0px。
+
+另外 framer-motion 的 `animate={{ scale }}` 會接管同一個元素的 `transform`，
+把 dnd-kit 寫的位移蓋掉——所以 `MiniCard` 是**外層純 div 管拖曳、內層 motion.div 管彈跳**，
+這兩層不能合併。
 
 ## 卡片
 
@@ -67,11 +119,11 @@ yarn dev
 | 取消選中 | 按 `Esc`，或再點一次同一張卡。之後按儲存就是新增 |
 | 單張播放 | 點卡片：載入字格、選中，並立刻念一次完整序列 |
 | 刪除 | 卡片右上角的 ×，直接刪不確認 |
-| 排序 | 拖卡片本體，垂直拖曳 |
-| 整列播放 | 左欄頂端 ▶▶（或 `Shift+Enter`）。把整列串成**一句話一口氣念完**。播放中再按一次＝停止；播放中不能拖曳也不能刪 |
+| 排序 | 拖卡片本體，**水平**拖曳 |
+| 整列播放 | 句子列左邊的 ▶▶（或 `Shift+Enter`）。把整列串成**一句話一口氣念完**。播放中再按一次＝停止；播放中不能拖曳也不能刪 |
 
 空字格按儲存不會有任何動作。卡片長得像課本裡的注音字：沒有格子框，空的格子不佔位，
-一聲不標（`ˉ` 只在中間的大字格當「我按到了」的回饋）。
+一聲不標（`ˉ` 只在字格當「我按到了」的回饋）。
 
 ### 什麼音存得進去
 
@@ -104,7 +156,7 @@ yarn dev
 
 ### 存在哪裡
 
-自動存在瀏覽器的 `localStorage`，key 是 `bopomofo.deck.v1`（右欄模式是 `bopomofo.rightpane.v1`）。
+自動存在瀏覽器的 `localStorage`，key 是 `bopomofo.deck.v1`。
 沒有後端、沒有資料庫，換瀏覽器或清掉瀏覽資料就會不見——要保存請用匯出。
 讀到壞掉的資料時會當成空的卡片組，不會讓畫面爆掉。
 
@@ -113,7 +165,7 @@ yarn dev
 - **⤓ 匯出**：下載 `bopomofo-deck-YYYYMMDD.json`。
 - **⤒ 匯入**：選一個 json 檔，**整份取代**現有卡片（不是附加）。
   檔案必須 `version` 是 `1`、每張卡的 `cells` 四欄都是該格合法的注音符號或 `null`；
-  任何一項不合就整份不收，左欄閃一下紅框，現有卡片不受影響。
+  任何一項不合就整份不收，句子列閃一下紅框，現有卡片不受影響。
 
 ```json
 {
@@ -181,25 +233,35 @@ node scripts/build-syllable-reading.mjs <dict-revised.json> <dict-concised.audio
 | `SENTENCE_SEPARATOR` | `''` | 整列播放的字間分隔符。`''`＝自然連讀（會變調、整列發光）；`'，'`＝聲調正確＋逐卡高亮 |
 | `BOUNDARY_FALLBACK_MS` | `900` | 等這麼久還沒收到 onboundary 就退回整列發光 |
 | `SHAKE_MS` | `300` | 存到不合法音節時字格搖頭的時間 |
-| `CARD_SCALE` | `0.35` | 迷你卡片相對於主字格的縮放比例 |
 | `ANIM_MS` | `260` | 動畫長度上限 |
 
 ## 目錄
 
 ```
-src/lib/bopomofo.ts   注音符號分類、大千式鍵盤表、聲調詞、讀音代字表、整字字串組合
-src/lib/speech.ts     語音挑選、token 序列、一 token 一 utterance 的循序播放
-src/lib/config.ts     可切換常數
-src/lib/palette.ts    四類符號的顏色
-src/lib/syllable-reading.ts  注音音節 → 代讀漢字（生成物，勿手改）
-src/lib/deck.ts       卡片組的型別、驗證、localStorage、匯出匯入
-scripts/              代讀漢字表的生成腳本
-src/components/SyllableBoard.tsx   中欄的四格字格
-src/components/OnScreenKeyboard.tsx 右欄的大千式鍵盤
-src/components/PosterBoard.tsx     右欄的課本順序海報
-src/components/RightPane.tsx       右欄的鍵盤／海報切換
-src/components/CardStrip.tsx       左欄的卡片列表、拖曳排序、匯出匯入
-src/components/MiniCard.tsx        單張迷你卡片
-src/components/Icons.tsx           全部按鈕用的 inline SVG 圖示
-src/app/              Next.js App Router 入口
+index.html                    進入點；iPad 全螢幕與 apple-touch-icon 的 meta 都在這
+vite.config.ts                base: '/bopomofo/'、@ 別名
+.github/workflows/pages.yml   push main → build → GitHub Pages
+public/icon.svg               圖示原稿
+public/icon-180.png           apple-touch-icon（180×180）
+
+src/main.tsx                  掛載
+src/App.tsx                   全部狀態與行為：播放、字格、卡片、鍵盤
+src/styles.css                重置與舞台外框（100dvh ＋ safe-area）
+
+src/components/Stage.tsx          1180×820 舞台的等比縮放與 useStageScale()
+src/components/SentenceStrip.tsx  句子列：▶▶、卡片橫列、匯出匯入
+src/components/MiniCard.tsx       一張卡（外層拖曳／內層動畫）
+src/components/SyllableBoard.tsx  字格四格
+src/components/SymbolBands.tsx    三條符號帶＋聲調小區
+src/components/ActionRow.tsx      ▶ 念一次／儲存／清除
+src/components/Icons.tsx          全部 inline SVG 圖示
+
+src/lib/bopomofo.ts           注音符號分類、大千式鍵盤表、聲調詞、讀音代字表、整字字串組合
+src/lib/speech.ts             語音挑選、token 序列、一 token 一 utterance 的循序播放
+src/lib/config.ts             可切換常數
+src/lib/palette.ts            全部色票（設計稿 note/design/gen.mjs 的 C）
+src/lib/syllable-reading.ts   注音音節 → 代讀漢字（生成物，勿手改）
+src/lib/deck.ts               卡片組的型別、驗證、localStorage、匯出匯入
+scripts/                      代讀漢字表的生成腳本
+note/design/                  設計稿（Main / Karaoke / Sentence .html ＋ gen.mjs）與驗收截圖
 ```

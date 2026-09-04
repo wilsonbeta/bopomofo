@@ -1,0 +1,44 @@
+name: Deploy to GitHub Pages
+
+# push 到 main 就重新 build 並上線；也可以在 Actions 頁面手動觸發。
+on:
+    push:
+        branches: [main]
+    workflow_dispatch:
+
+# 官方 deploy-pages 需要的權限，零 secret。
+permissions:
+    contents: read
+    pages: write
+    id-token: write
+
+# 同時只跑一個部署；新的 push 進來就讓正在跑的那個做完（不取消，免得站上停在半途）。
+concurrency:
+    group: pages
+    cancel-in-progress: false
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 20
+                  cache: yarn
+            - run: yarn install --frozen-lockfile
+            - run: yarn build
+            - uses: actions/configure-pages@v5
+            - uses: actions/upload-pages-artifact@v3
+              with:
+                  path: dist
+
+    deploy:
+        needs: build
+        runs-on: ubuntu-latest
+        environment:
+            name: github-pages
+            url: ${{ steps.deployment.outputs.page_url }}
+        steps:
+            - id: deployment
+              uses: actions/deploy-pages@v4

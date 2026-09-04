@@ -53,8 +53,6 @@ export const ANIM_MS = 260;
 /** localStorage key：卡片組。 */
 export const DECK_STORAGE_KEY = 'bopomofo.deck.v1';
 
-/** localStorage key：右欄要顯示鍵盤還是海報。 */
-export const RIGHT_PANE_STORAGE_KEY = 'bopomofo.rightpane.v1';
 
 /** 匯入失敗時紅框閃爍的時間。 */
 export const IMPORT_ERROR_MS = 600;

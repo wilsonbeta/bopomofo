@@ -1,0 +1,72 @@
+/*
+ * 結構與重置。顏色一律來自 `src/lib/palette.ts`（元件的 inline style），
+ * 這裡只放「沒辦法用 inline style 表達」的東西：重置、偽類、動畫。
+ */
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+}
+
+body {
+    font-family: "Noto Sans TC", "PingFang TC", "Heiti TC", sans-serif;
+    color: #2b2a28;
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+}
+
+#root {
+    height: 100%;
+}
+
+/* 舞台外框：吃滿整個可視區並扣掉瀏海／Home indicator，內容置中。 */
+.stage-box {
+    position: fixed;
+    inset: 0;
+    height: 100dvh;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+        env(safe-area-inset-left);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+/* 舞台本體：固定 1180×820，整個等比縮放。 */
+.stage {
+    transform-origin: center center;
+    flex: none;
+}
+
+button {
+    font-family: inherit;
+    padding: 0;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+/* 符號鍵與動作鈕：按下去縮一下，給小朋友一個「按到了」的回饋。 */
+.press {
+    transition: transform 120ms ease-out;
+}
+
+.press:active {
+    transform: scale(0.9);
+}
+
+.press-soft {
+    transition: transform 120ms ease-out;
+}
+
+.press-soft:active {
+    transform: scale(0.94);
+}

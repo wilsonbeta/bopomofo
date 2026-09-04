@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" width="180" height="180">
+    <rect width="180" height="180" rx="40" fill="#FAF7F1"/>
+    <text x="90" y="90" font-family="PingFang TC, Noto Sans TC, Heiti TC, sans-serif" font-size="110" font-weight="700"
+          text-anchor="middle" dominant-baseline="central" fill="#D9480F">ㄅ</text>
+    <circle cx="38" cy="146" r="9" fill="#2B8A3E"/>
+    <circle cx="66" cy="146" r="9" fill="#1864AB"/>
+    <circle cx="94" cy="146" r="9" fill="#862E9C"/>
+</svg>
