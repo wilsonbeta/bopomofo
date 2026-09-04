@@ -45,14 +45,17 @@ export interface PosterBoardProps {
 }
 
 export function PosterBoard({ onPress }: PosterBoardProps) {
+    // align="stretch" ＋ zone width 100%：四個 zone 由最寬的那一區（4 顆鍵）決定寬度，
+    // 彼此等寬、左緣對齊；區內按鍵一律從左排起（justify="flex-start"）。
     return (
-        <Flex data-testid="poster" direction="column" gap="14px" align="center">
+        <Flex data-testid="poster" direction="column" gap="14px" align="stretch">
             {ZONES.map((zone) => {
                 const c = SLOT_COLOR[zone.slot];
                 return (
                     <Box
                         key={zone.slot}
                         data-poster-zone={zone.slot}
+                        width="100%"
                         position="relative"
                         paddingY="12px"
                         paddingLeft="22px"

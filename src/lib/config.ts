@@ -50,9 +50,6 @@ export const TOKEN_GAP_MS = 180;
 /** 動畫長度上限（ms）。 */
 export const ANIM_MS = 260;
 
-/** 整列播放時，卡片與卡片之間的停頓。 */
-export const DECK_GAP_MS = 500;
-
 /** localStorage key：卡片組。 */
 export const DECK_STORAGE_KEY = 'bopomofo.deck.v1';
 
@@ -64,3 +61,29 @@ export const IMPORT_ERROR_MS = 600;
 
 /** 迷你卡片相對於主字格的縮放比例。 */
 export const CARD_SCALE = 0.35;
+
+/**
+ * 整列播放時，卡片代讀漢字之間插入的分隔符。
+ *
+ * **預設 `''`（不插分隔符）＝自然連讀**，Wilson 裁示：「變調沒關係，這樣才自然」。
+ * 這條路的代價是實測出來的，寫在這裡免得日後有人以為是漏掉：
+ *
+ * 1. **引擎會套三聲連讀變調。** F0 輪廓比對（Meijia）：「馬好」的第一個音節 slope +2.23，
+ *    與真的是二聲的「麻好」+2.19 幾乎重合，而孤立的「馬」是 slope -4.94（降到低的三聲）。
+ *    也就是卡片寫 ㄇㄚˇ、念出來是 ㄇㄚˊ。這是刻意接受的取捨，不是 bug。
+ * 2. **onboundary 會擠在句尾**，無法逐卡高亮：「貓媽蜜」全長 831ms，
+ *    第 2、3 字的 boundary 都在 809ms 才一起到。此時自動退回「整列淡發光」。
+ *
+ * 設成 `'，'`（或任何標點：、、·、；效果完全相同）則反過來：
+ * 聲調正確，且 onboundary 變成一字一個、間隔均勻（101 / 731 / 1243 / 1819 / 2341ms），
+ * 逐卡高亮才能誠實地做，中欄字格也會跟著換成當前卡。代價是長度約兩倍、字間有停頓。
+ *
+ * **空白類無效**：全形／半形空白都會被引擎直接忽略，PCM 與不插時等長。只有標點有效。
+ */
+export const SENTENCE_SEPARATOR: string = '';
+
+/** 整列播放開始後，等這麼久還沒收到任何 onboundary 就退回「整列淡發光」。 */
+export const BOUNDARY_FALLBACK_MS = 900;
+
+/** 存到不合法音節時，字格搖頭的時間。 */
+export const SHAKE_MS = 300;

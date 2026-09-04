@@ -11,7 +11,7 @@ import {
     type DragEndEvent
 } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import type { Card } from '@/lib/deck';
+import { isLegalCard, type Card } from '@/lib/deck';
 import { EMPTY_BORDER, SLOT_COLOR } from '@/lib/palette';
 import { ExportIcon, ImportIcon, PlayAllIcon, StopIcon } from './Icons';
 import { MiniCard } from './MiniCard';
@@ -25,6 +25,11 @@ export interface CardStripProps {
     flashId: string | null;
     /** 整列播放中：禁用拖曳與刪除。 */
     running: boolean;
+    /**
+     * 整列播放但拿不到可用的 onboundary（沒插分隔符，或事件沒來）：
+     * 整欄一起淡淡發光，不假裝逐卡同步。
+     */
+    glow: boolean;
     /** 匯入失敗，整欄閃紅框。 */
     importError: boolean;
     onSelect: (id: string) => void;
@@ -41,6 +46,7 @@ export function CardStrip({
     playingId,
     flashId,
     running,
+    glow,
     importError,
     onSelect,
     onDelete,
@@ -107,6 +113,13 @@ export function CardStrip({
                 paddingY="10px"
                 minWidth="150px"
                 minHeight="90px"
+                borderRadius="18px"
+                data-deck-glow={glow ? 'true' : 'false'}
+                style={{
+                    boxShadow: glow ? '0 0 22px 6px rgba(255, 212, 59, 0.75)' : 'none',
+                    background: glow ? 'rgba(255, 249, 219, 0.9)' : 'transparent',
+                    transition: 'box-shadow 200ms ease-out, background 200ms ease-out'
+                }}
             >
                 <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
                     <SortableContext items={cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
@@ -118,6 +131,7 @@ export function CardStrip({
                                 selected={card.id === selectedId}
                                 playing={card.id === playingId}
                                 flash={card.id === flashId}
+                                illegal={!isLegalCard(card)}
                                 locked={running}
                                 onSelect={onSelect}
                                 onDelete={onDelete}

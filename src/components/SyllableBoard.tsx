@@ -56,20 +56,34 @@ export interface SyllableBoardProps {
     active: Slot | 'whole' | null;
     /** 念完整串後的收尾彈跳。 */
     finished: boolean;
+    /** 存到不合法音節：左右搖頭＋邊框短暫變紅，不彈任何文字。 */
+    shake?: boolean;
 }
 
-export function SyllableBoard({ cells, active, finished }: SyllableBoardProps) {
+export function SyllableBoard({ cells, active, finished, shake = false }: SyllableBoardProps) {
     const whole = active === 'whole';
     const size = 132;
+    const glow = whole
+        ? '0 0 0 6px #FFD43B, 0 0 34px 10px rgba(255, 212, 59, 0.75)'
+        : shake
+          ? '0 0 0 5px #E03131'
+          : '0 0 0 0 rgba(0,0,0,0)';
     return (
         <MotionBox
             data-testid="syllable-board"
+            data-shake={shake ? 'true' : 'false'}
             padding="18px"
             borderRadius="28px"
-            style={{
-                boxShadow: whole ? '0 0 0 6px #FFD43B, 0 0 34px 10px rgba(255, 212, 59, 0.75)' : '0 0 0 0 rgba(0,0,0,0)'
-            }}
-            animate={whole ? { scale: [1, 1.08, 1] } : finished ? { y: [0, -14, 0] } : { scale: 1, y: 0 }}
+            style={{ boxShadow: glow }}
+            animate={
+                shake
+                    ? { x: [0, -10, 10, -6, 6, 0] }
+                    : whole
+                      ? { scale: [1, 1.08, 1] }
+                      : finished
+                        ? { y: [0, -14, 0] }
+                        : { scale: 1, y: 0, x: 0 }
+            }
             transition={{ duration: D, ease: 'easeOut' }}
         >
             <Flex align="center" gap="18px">

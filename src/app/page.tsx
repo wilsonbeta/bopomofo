@@ -19,26 +19,33 @@ import {
 } from '@/lib/bopomofo';
 import {
     ANIM_MS,
-    DECK_GAP_MS,
+    BOUNDARY_FALLBACK_MS,
     IMPORT_ERROR_MS,
     RIGHT_PANE_STORAGE_KEY,
+    SENTENCE_SEPARATOR,
+    SHAKE_MS,
     SPEAK_ON_KEY
 } from '@/lib/config';
 import {
     deckToJson,
     downloadJson,
     exportFilename,
+    isLegalCard,
+    isLegalCells,
     loadDeck,
     moveCard,
     newCardId,
     parseDeckJson,
+    readingOf,
     saveDeck,
     type Card
 } from '@/lib/deck';
 import { PAGE_BG, SLOT_COLOR } from '@/lib/palette';
 import {
+    buildSentence,
     buildTokens,
     cancelAll,
+    cardIndexAt,
     pickVoice,
     playSequence,
     shouldUseCharReading,
@@ -48,7 +55,12 @@ import {
 
 const MotionBox = motion.create(Box);
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+/** 三欄各包一層很淡的底，給「這裡是另一個功能區」的心理暗示，但不搶戲。 */
+const PANEL = {
+    background: 'rgba(0, 0, 0, 0.03)',
+    borderRadius: '24px',
+    padding: '20px'
+} as const;
 
 export default function Page() {
     const [cells, setCells] = useState<Cells>(EMPTY_CELLS);
@@ -62,6 +74,10 @@ export default function Page() {
     const [flashId, setFlashId] = useState<string | null>(null);
     const [deckRunning, setDeckRunning] = useState(false);
     const [importError, setImportError] = useState(false);
+    /** 整列播放拿不到可用的 onboundary 時，整欄一起淡發光（不假裝逐卡同步）。 */
+    const [deckGlow, setDeckGlow] = useState(false);
+    /** 存到不合法音節時，字格搖頭。 */
+    const [shake, setShake] = useState(false);
     const [paneMode, setPaneMode] = useState<PaneMode>('keyboard');
     /**
      * localStorage 讀完了沒。
@@ -142,6 +158,7 @@ export default function Page() {
         setPlaying(false);
         setDeckRunning(false);
         setPlayingId(null);
+        setDeckGlow(false);
         setFinished(false);
     }, []);
 
@@ -191,36 +208,75 @@ export default function Page() {
         [newSignal, runCells]
     );
 
-    /** 整列播放：依目前順序逐張，卡片亮＋字格同步。再按一次＝停止。 */
+    /**
+     * 整列播放＝「念一句話」：把整列卡片的代讀漢字串成**一個 utterance** 念完，
+     * 讓引擎自己處理句子韻律，而不是一張卡走一遍符號序列。
+     *
+     * 兩件事被 `SENTENCE_SEPARATOR` 綁在一起（都是實測結論，見 config 註解）：
+     * 有分隔符 → 三聲不會被連讀變調，而且 onboundary 一字一個、間隔均勻 → **逐卡高亮**；
+     * 沒有分隔符 → 會變調，且 onboundary 擠在句尾 → 退回**整列淡發光**，不假裝同步。
+     * 就算有分隔符，事件沒來（換瀏覽器／換語音）也一樣退回發光。
+     *
+     * 不合法的舊卡直接跳過，但留在畫面上（紅框標示），不刪。
+     */
     const playAll = useCallback(async () => {
         if (runningRef.current) {
             stopPlayback();
             return;
         }
-        const cards = deckRef.current;
+        const cards = deckRef.current.filter(isLegalCard);
         if (!cards.length) return;
+        const readings = cards.map((c) => readingOf(c.cells) as string);
+        const { text, offsets } = buildSentence(readings);
 
         const signal = newSignal();
         runningRef.current = true;
         setPlaying(false);
         setFinished(false);
+        setActive(null);
         setDeckRunning(true);
 
-        for (const card of cards) {
-            if (signal.cancelled) return;
-            setCells(card.cells);
-            setPlayingId(card.id);
-            const completed = await runCells(card.cells, signal);
-            if (signal.cancelled) return;
-            if (!completed) break;
-            await sleep(DECK_GAP_MS);
-        }
+        const perCard = SENTENCE_SEPARATOR.length > 0;
+        setDeckGlow(!perCard);
+        setPlayingId(null);
+
+        let gotBoundary = false;
+        const fallback = perCard
+            ? setTimeout(() => {
+                  if (!gotBoundary && !signal.cancelled) {
+                      setDeckGlow(true);
+                      setPlayingId(null);
+                  }
+              }, BOUNDARY_FALLBACK_MS)
+            : undefined;
+
+        await speakOne(text, {
+            voice: voiceRef.current,
+            signal,
+            // 整句比單 token 長很多，用預設的 6 秒上限會被保險絲提早切斷。
+            timeoutMs: Math.max(4000, text.length * 900),
+            onBoundary: perCard
+                ? (charIndex) => {
+                      if (signal.cancelled) return;
+                      const i = cardIndexAt(charIndex, offsets, readings);
+                      // 落在分隔符上：不屬於任何一張卡，保持現狀別亂跳。
+                      if (i < 0) return;
+                      gotBoundary = true;
+                      setDeckGlow(false);
+                      setPlayingId(cards[i].id);
+                      setCells(cards[i].cells);
+                  }
+                : undefined
+        });
+
+        if (fallback) clearTimeout(fallback);
         if (signal.cancelled) return;
         runningRef.current = false;
         setActive(null);
         setPlayingId(null);
+        setDeckGlow(false);
         setDeckRunning(false);
-    }, [newSignal, runCells, stopPlayback]);
+    }, [newSignal, stopPlayback]);
 
     /* ---------- 字格編輯 ---------- */
 
@@ -265,10 +321,23 @@ export default function Page() {
         setTimeout(() => setFlashId((cur) => (cur === id ? null : cur)), ANIM_MS + 40);
     }, []);
 
-    /** 有選中＝覆寫該卡並保持選中；沒選中＝存成新卡加在最後。字格都不清空。 */
+    /** 存不進去時的回饋：字格左右搖頭＋邊框短暫變紅，不彈任何文字。 */
+    const rejectSave = useCallback(() => {
+        setShake(true);
+        setTimeout(() => setShake(false), SHAKE_MS);
+    }, []);
+
+    /**
+     * 有選中＝覆寫該卡並保持選中；沒選中＝存成新卡加在最後。字格都不清空。
+     * 音節查不到代讀漢字（例：ㄈㄞ）就不存，改成搖頭——這張表就是「國語有沒有這個音」的判準。
+     */
     const saveCard = useCallback(() => {
         const current = cellsRef.current;
         if (isEmpty(current)) return;
+        if (!isLegalCells(current)) {
+            rejectSave();
+            return;
+        }
         const sel = selectedRef.current;
         if (sel && deckRef.current.some((c) => c.id === sel)) {
             setDeck((prev) => prev.map((c) => (c.id === sel ? { ...c, cells: current } : c)));
@@ -278,7 +347,7 @@ export default function Page() {
         const card: Card = { id: newCardId(), cells: current };
         setDeck((prev) => [...prev, card]);
         flash(card.id);
-    }, [flash]);
+    }, [flash, rejectSave]);
 
     /** 點卡片：已選中的再點一次＝取消選中；否則載入字格＋選中＋立刻念一次。 */
     const selectCard = useCallback(
@@ -316,7 +385,8 @@ export default function Page() {
     const importDeck = useCallback(async (file: File) => {
         let parsed = null;
         try {
-            parsed = parseDeckJson(await file.text());
+            // 第二個參數＝匯入才開的嚴格關：任何一張音節不合法就整份拒收。
+            parsed = parseDeckJson(await file.text(), true);
         } catch {
             parsed = null;
         }
@@ -371,24 +441,24 @@ export default function Page() {
     /* ---------- 版面 ---------- */
 
     return (
-        <Flex
-            direction={{ base: 'column', lg: 'row' }}
-            align={{ base: 'center', lg: 'flex-start' }}
-            justify="center"
-            gap={{ base: '26px', lg: '44px' }}
-            minHeight="100vh"
-            paddingY="34px"
-            paddingX="16px"
-            style={{ background: PAGE_BG }}
-        >
+        <Box minHeight="100vh" paddingY="34px" paddingX="16px" style={{ background: PAGE_BG }}>
+            <Flex
+                direction={{ base: 'column', lg: 'row' }}
+                align={{ base: 'center', lg: 'flex-start' }}
+                justify={{ base: 'center', lg: 'space-between' }}
+                gap={{ base: '26px', lg: '40px' }}
+                maxWidth="1400px"
+                marginX="auto"
+            >
             {/* 左欄：卡片列表。窄螢幕排到最後（字格 → 鍵盤 → 列表）。 */}
-            <Box order={{ base: 3, lg: 1 }}>
+            <Box data-testid="panel-cards" order={{ base: 3, lg: 1 }} style={PANEL}>
                 <CardStrip
                     cards={deck}
                     selectedId={selectedId}
                     playingId={playingId}
                     flashId={flashId}
                     running={deckRunning}
+                    glow={deckGlow}
                     importError={importError}
                     onSelect={selectCard}
                     onDelete={deleteCard}
@@ -399,9 +469,16 @@ export default function Page() {
                 />
             </Box>
 
-            {/* 中欄：字格＋按鈕 */}
-            <Flex order={{ base: 1, lg: 2 }} direction="column" align="center" gap="26px">
-                <SyllableBoard cells={cells} active={active} finished={finished} />
+            {/* 中欄：字格＋按鈕。字格與按鈕列左緣對齊，不置中。 */}
+            <Flex
+                data-testid="panel-board"
+                order={{ base: 1, lg: 2 }}
+                direction="column"
+                align="flex-start"
+                gap="26px"
+                style={PANEL}
+            >
+                <SyllableBoard cells={cells} active={active} finished={finished} shake={shake} />
 
                 <Flex gap="14px" align="center">
                     <MotionBox
@@ -476,9 +553,10 @@ export default function Page() {
             </Flex>
 
             {/* 右欄：鍵盤 ⇄ 海報 */}
-            <Box order={{ base: 2, lg: 3 }}>
+            <Box data-testid="panel-pane" order={{ base: 2, lg: 3 }} style={PANEL}>
                 <RightPane mode={paneMode} onModeChange={changePaneMode} onPress={insert} />
             </Box>
-        </Flex>
+            </Flex>
+        </Box>
     );
 }

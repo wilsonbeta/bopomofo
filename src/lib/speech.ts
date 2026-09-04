@@ -5,6 +5,7 @@ import {
     WHOLE_TOKEN_USE_HANZI_READING,
     PREFERRED_VOICE_PATTERNS,
     SYMBOL_READING_MODE,
+    SENTENCE_SEPARATOR,
     TOKEN_GAP_MS,
     UTTERANCE_TIMEOUT_MAX_MS,
     UTTERANCE_TIMEOUT_MIN_MS,
@@ -106,6 +107,14 @@ export interface SpeakOneOptions {
     onStart?: () => void;
     onEnd?: () => void;
     signal?: { cancelled: boolean };
+    /**
+     * 字元邊界事件。中文在 Chrome 上是**逐字**觸發（`name='word'`、`charLength=1`），
+     * `charIndex` 準確；但時序只有在字間插了標點時才平均分布，
+     * 不插標點時會擠在句尾——所以呼叫端要自己備妥退路，不要無條件相信它會來。
+     */
+    onBoundary?: (charIndex: number) => void;
+    /** 覆寫保險絲時間。整句可能比單 token 長很多，用預設的上限會被提早切斷。 */
+    timeoutMs?: number;
 }
 
 /**
@@ -139,7 +148,12 @@ export function speakOne(text: string, opts: SpeakOneOptions): Promise<void> {
         u.onstart = () => opts.onStart?.();
         u.onend = finish;
         u.onerror = finish;
-        const timer = setTimeout(finish, timeoutFor(text));
+        if (opts.onBoundary) {
+            u.onboundary = (e) => {
+                if (!settled) opts.onBoundary?.(e.charIndex);
+            };
+        }
+        const timer = setTimeout(finish, opts.timeoutMs ?? timeoutFor(text));
 
         // 排隊前先確認沒被取消，避免 cancel() 之後又補塞一個進去。
         if (opts.signal?.cancelled) return finish();
@@ -180,4 +194,34 @@ export function shouldUseCharReading(voice: SpeechSynthesisVoice | null): boolea
     if (SYMBOL_READING_MODE === 'char') return true;
     if (AUTO_FALLBACK_TO_CHAR_READING && !voiceReadsBopomofo(voice)) return true;
     return false;
+}
+
+
+/**
+ * 整列播放用：把一串代讀漢字接成一個 utterance 念完。
+ *
+ * `SENTENCE_SEPARATOR` 不是裝飾——不插分隔符時 Meijia 會套三聲連讀變調，
+ * 把 ㄇㄚˇ 念成 ㄇㄚˊ（見 config 的實測註解）。插了標點還有第二個好處：
+ * onboundary 會變成一字一個、間隔均勻，逐卡高亮才有辦法誠實地做。
+ */
+export function buildSentence(readings: string[]): { text: string; offsets: number[] } {
+    const offsets: number[] = [];
+    let text = '';
+    readings.forEach((r, i) => {
+        if (i > 0) text += SENTENCE_SEPARATOR;
+        offsets.push(text.length);
+        text += r;
+    });
+    return { text, offsets };
+}
+
+/**
+ * 把 onboundary 的 charIndex 對回第幾張卡。
+ * 落在分隔符上（不屬於任何一張卡）就回 -1，呼叫端保持現狀不要亂跳。
+ */
+export function cardIndexAt(charIndex: number, offsets: number[], readings: string[]): number {
+    for (let i = 0; i < offsets.length; i++) {
+        if (charIndex >= offsets[i] && charIndex < offsets[i] + readings[i].length) return i;
+    }
+    return -1;
 }
