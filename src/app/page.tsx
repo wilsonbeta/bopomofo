@@ -147,66 +147,71 @@ export default function Page() {
 
     return (
         <Flex
-            direction="column"
+            direction={{ base: 'column', lg: 'row' }}
             align="center"
-            gap="26px"
+            justify="center"
+            gap={{ base: '26px', lg: '64px' }}
             minHeight="100vh"
             paddingY="34px"
             paddingX="16px"
             style={{ background: PAGE_BG }}
         >
-            <SyllableBoard cells={cells} active={active} finished={finished} />
+            {/* 左欄：字格＋按鈕 */}
+            <Flex direction="column" align="center" gap="26px">
+                <SyllableBoard cells={cells} active={active} finished={finished} />
 
-            <Flex gap="18px" align="center">
-                <MotionBox
-                    as="button"
-                    data-testid="play"
-                    aria-label="play"
-                    onClick={() => void play()}
-                    width="132px"
-                    height="88px"
-                    borderRadius="24px"
-                    display="flex"
-                    alignItems="center"
-                    justifyContent="center"
-                    cursor="pointer"
-                    style={{ border: 'none', background: playing ? '#FFD43B' : '#FFC078' }}
-                    whileTap={{ scale: 0.92 }}
-                    transition={{ duration: ANIM_MS / 1000 }}
-                >
-                    <Box
-                        width="0"
-                        height="0"
-                        style={{
-                            borderTop: '26px solid transparent',
-                            borderBottom: '26px solid transparent',
-                            borderLeft: '42px solid #212529',
-                            marginLeft: '8px'
-                        }}
-                    />
-                </MotionBox>
+                <Flex gap="18px" align="center">
+                    <MotionBox
+                        as="button"
+                        data-testid="play"
+                        aria-label="play"
+                        onClick={() => void play()}
+                        width="132px"
+                        height="88px"
+                        borderRadius="24px"
+                        display="flex"
+                        alignItems="center"
+                        justifyContent="center"
+                        cursor="pointer"
+                        style={{ border: 'none', background: playing ? '#FFD43B' : '#FFC078' }}
+                        whileTap={{ scale: 0.92 }}
+                        transition={{ duration: ANIM_MS / 1000 }}
+                    >
+                        <Box
+                            width="0"
+                            height="0"
+                            style={{
+                                borderTop: '26px solid transparent',
+                                borderBottom: '26px solid transparent',
+                                borderLeft: '42px solid #212529',
+                                marginLeft: '8px'
+                            }}
+                        />
+                    </MotionBox>
 
-                <Box
-                    as="button"
-                    data-testid="clear"
-                    aria-label="clear"
-                    onClick={clearAll}
-                    width="88px"
-                    height="88px"
-                    borderRadius="24px"
-                    cursor="pointer"
-                    style={{ border: `4px solid ${SLOT_COLOR.tone.base}`, background: '#FFFFFF' }}
-                >
                     <Box
-                        margin="0 auto"
-                        width="38px"
-                        height="6px"
-                        borderRadius="3px"
-                        style={{ background: SLOT_COLOR.tone.base }}
-                    />
-                </Box>
+                        as="button"
+                        data-testid="clear"
+                        aria-label="clear"
+                        onClick={clearAll}
+                        width="88px"
+                        height="88px"
+                        borderRadius="24px"
+                        cursor="pointer"
+                        style={{ border: `4px solid ${SLOT_COLOR.tone.base}`, background: '#FFFFFF' }}
+                    >
+                        <Box
+                            margin="0 auto"
+                            width="38px"
+                            height="6px"
+                            borderRadius="3px"
+                            style={{ background: SLOT_COLOR.tone.base }}
+                        />
+                    </Box>
+                </Flex>
             </Flex>
 
+            {/* 右欄：螢幕注音鍵盤 */}
             <OnScreenKeyboard onPress={insert} />
         </Flex>
     );
